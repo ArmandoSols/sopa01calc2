@@ -182,7 +182,7 @@
   function updateProgress(){const done=Object.values(states).filter(s=>s.correct||s.exhausted).length;$('progressText').textContent=`${done} / ${questions.length}`;$('progressFill').style.width=`${questions.length?done/questions.length*100:0}%`}
   function scheduleDraftSave(){clearTimeout(draftTimer);draftTimer=setTimeout(saveDrafts,300)} function saveDrafts(){if(!session)return;const old=loadLocal(session.email)||{};saveLocal({...old,drafts:rememberDrafts(),pendingEvents:pendingEvents.slice(0,30)})} function rememberDrafts(){return Object.fromEntries(Object.entries(states).filter(([,s])=>s.draft&&!s.correct&&!s.exhausted).map(([id,s])=>[id,s.draft]))} function loadLocal(email){try{return JSON.parse(localStorage.getItem(localKey(email)))}catch{return null}} function saveLocal(v){try{localStorage.setItem(localKey(session?.email||credentials().email),JSON.stringify(v))}catch{}}
   function mergeServerState(id,server,expectedDraft=null){const current=states[id];if(!current||!server)return;const currentCount=Array.isArray(current.history)?current.history.length:0,serverCount=Array.isArray(server.history)?server.history.length:0;if(serverCount<currentCount)return;const liveDraft=current.draft;Object.assign(current,server);if(expectedDraft===null?!!liveDraft:liveDraft!==expectedDraft)current.draft=liveDraft}
-  function maybePromptFinalSubmission(){if(finalPromptShown||!session||session.status==='ENTREGADO'||!questions.length||!questions.every(q=>states[q.id].correct||states[q.id].exhausted))return;finalPromptShown=true;$('submitSummary').textContent='Ya respondió y verificó todas las preguntas. Pulse “Entregar definitivamente” para registrar la nota final.';if(!$('submitDialog').open)$('submitDialog').showModal()}
+  function maybePromptFinalSubmission(){if(finalPromptShown||sending||pendingEvents.length||!session||session.status==='ENTREGADO'||!questions.length||!questions.every(q=>states[q.id].correct||states[q.id].exhausted))return;finalPromptShown=true;$('submitSummary').textContent='Ya respondió y verificó todas las preguntas. Pulse “Entregar definitivamente” para registrar la nota final.';if(!$('submitDialog').open)$('submitDialog').showModal()}
   async function recoverUnconfirmed(events){
     let data=null;
     await sleep(1200+(events[0]?hash(events[0].eventId)%2500:0));
@@ -235,7 +235,7 @@
       renderClues();syncHighlights();
       clearTimeout(retryTimer);retryTimer=setTimeout(()=>{retryTimer=null;flush(false)},12000+hash(session.sessionId)%18000);
       return false;
-    }finally{sending=false;if(pendingEvents.length&&!retryTimer)scheduleBatchSync()}
+    }finally{sending=false;if(pendingEvents.length&&!retryTimer)scheduleBatchSync();else maybePromptFinalSubmission()}
   }
   function setSync(state,text){$('syncState').dataset.state=state;$('syncState').textContent=text}
   function startTimer(){clearInterval(timerId);const tick=()=>{const left=Math.max(0,Math.ceil((Number(session.deadlineAt)-Date.now())/1000)),m=Math.floor(left/60),s=left%60;$('timerText').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(left<=0){clearInterval(timerId);submit(true)}};tick();timerId=setInterval(tick,1000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)tick()},{once:false});window.addEventListener('focus',tick,{once:false})}
